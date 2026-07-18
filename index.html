@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinyin 拼音 — Công cụ phiên âm &amp; trình chiếu</title>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6fb; --panel: #ffffff; --ink: #1c2740; --muted: #64708a;
+    --line: #dfe4ef; --accent: #1d5fc2; --accent-soft: #e8f0fe;
+    --py-color: #1d5fc2;
+    --s3-color: #c05600; --s3-bg: #fff1e2;   /* biến điệu thanh 3 */
+    --sy-color: #7c3aad; --sy-bg: #f4e9fc;   /* biến điệu 一 / 不 */
+    --hz: 48px; --py: 22px;
+    --hz-font: "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141f; --panel: #1a2130; --ink: #e8ecf5; --muted: #93a0b8;
+      --line: #2c3549; --accent: #6ea8ff; --accent-soft: #1e2c47;
+      --py-color: #7db2ff;
+      --s3-color: #ffb066; --s3-bg: #3a2a17;
+      --sy-color: #cfa0f0; --sy-bg: #34243f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line);
+           padding: 14px 20px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 19px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px 20px 60px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+           padding: 14px 16px; margin-bottom: 14px; }
+  label.small { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--line);
+             border-radius: 8px; padding: 10px 12px; font-size: 18px; line-height: 1.6;
+             font-family: var(--hz-font); background: var(--bg); color: var(--ink); }
+  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 10px; }
+  button { border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+           border-radius: 8px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.1); color: #fff; }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+  select { border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+           border-radius: 8px; padding: 6px 8px; font-size: 14px; }
+
+  /* Voice controls */
+  .group { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .voice-info { font-size: 12px; color: var(--muted); }
+  .voice-tips { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .voice-tips summary { cursor: pointer; color: var(--accent); }
+  .voice-tips ul { margin: 6px 0 4px; padding-left: 20px; }
+  .voice-tips li { margin-bottom: 4px; }
+  .keypanel { margin-top: 10px; padding: 12px 14px; border: 1px dashed var(--accent);
+              border-radius: 10px; background: var(--accent-soft); font-size: 13.5px; }
+  .keypanel ol { margin: 8px 0; padding-left: 20px; }
+  .keypanel li { margin-bottom: 4px; }
+  .keypanel a { color: var(--accent); }
+  .keypanel input { border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+                    border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+  .keynote { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+  #rate { accent-color: var(--accent); }
+  .val { font-variant-numeric: tabular-nums; }
+
+  /* Legend */
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .legend .chip { padding: 1px 8px; border-radius: 6px; font-weight: 600; }
+  .chip.s3 { color: var(--s3-color); background: var(--s3-bg); }
+  .chip.sy { color: var(--sy-color); background: var(--sy-bg); }
+
+  /* Size bar (lives inside the stage so it is available in fullscreen too) */
+  .sizebar { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+             padding: 10px 16px; margin-bottom: 14px; }
+  .sizebar .group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .sizebar input[type=range] { width: 140px; accent-color: var(--accent); }
+  .sizebar .val { min-width: 48px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .presets button { padding: 6px 10px; font-size: 13px; }
+  .presets button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .saved { font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .4s; }
+  .saved.show { opacity: 1; }
+
+  /* Output */
+  #stage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  #stage:fullscreen, #stage:-webkit-full-screen { border: none; border-radius: 0;
+      overflow-y: auto; padding: 48px 6vw 110px; background: var(--panel); }
+  /* .fakefs = CSS fallback when the browser refuses real fullscreen (e.g. iPad) */
+  #stage.fakefs { position: fixed; inset: 0; z-index: 999; border: none; border-radius: 0;
+      overflow-y: auto; padding: 48px 6vw 110px; background: var(--panel); }
+  #stage:fullscreen .sizebar, #stage:-webkit-full-screen .sizebar, #stage.fakefs .sizebar {
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 5;
+      box-shadow: 0 6px 24px rgba(0,0,0,.25); opacity: .45; transition: opacity .25s;
+      width: max-content; max-width: 96vw; }
+  #stage:fullscreen .sizebar:hover, #stage:-webkit-full-screen .sizebar:hover,
+  #stage.fakefs .sizebar:hover { opacity: 1; }
+  #stage .sizebar { margin: 0 0 16px; border-radius: 10px; }
+
+  #output { font-family: var(--hz-font); }
+  #output .placeholder, #output .offline { font-size: 15px;
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #output .placeholder { color: var(--muted); }
+  .para { display: flex; flex-wrap: wrap; align-items: flex-end; row-gap: calc(var(--py) * 0.9);
+          margin: 0 0 calc(var(--hz) * 0.45); cursor: pointer; }
+  .para.speaking { outline: 2px dashed var(--accent); outline-offset: 6px; border-radius: 8px; }
+  .cell { display: inline-flex; flex-direction: column; align-items: center; }
+  .cell .py { font-size: var(--py); line-height: 1.25; color: var(--py-color);
+              white-space: nowrap; padding: 0 0.15em; border-radius: 6px;
+              font-family: "Helvetica Neue", Arial, sans-serif; }
+  .cell .py.s3 { color: var(--s3-color); background: var(--s3-bg); font-weight: 600; }
+  .cell .py.sy { color: var(--sy-color); background: var(--sy-bg); font-weight: 600; }
+  .cell .hz { font-size: var(--hz); line-height: 1.18; }
+  .cell.nonzh .py { visibility: hidden; }
+  .offline { color: #c0392b; font-weight: 600; }
+
+  @media print {
+    header, .panel, .sizebar, .no-print { display: none !important; }
+    body, #stage { background: #fff; color: #000; }
+    #stage { border: none; padding: 0; }
+    main { max-width: none; padding: 0; }
+    .cell .py { color: #444; }
+    .cell .py.s3 { color: var(--s3-color); }
+    .cell .py.sy { color: var(--sy-color); }
+  }
+  @media (max-width: 640px) {
+    .sizebar input[type=range] { width: 100px; }
+    main { padding: 10px 10px 40px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pinyin 拼音注音</h1>
+  <span class="sub">Phiên âm tự động, có biến điệu (tone sandhi) — dùng cho tự học, lớp học và trình chiếu</span>
+</header>
+<main>
+  <!-- Input -->
+  <section class="panel">
+    <label class="small" for="src">Nhập chữ Hán (câu hoặc đoạn văn — pinyin hiện ra tự động khi gõ)</label>
+    <textarea id="src" placeholder="例如：你好！我很好。一起学习，好不好？" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="primary" id="btnGo">Tạo pinyin</button>
+      <button id="btnSample">Câu ví dụ</button>
+      <button id="btnCopy">Sao chép pinyin</button>
+      <button id="btnPrint">🖨 In</button>
+      <label class="toggle"><input type="checkbox" id="optSandhi" checked> Áp dụng biến điệu</label>
+      <label class="toggle"><input type="checkbox" id="optHl" checked> Tô màu âm tiết biến điệu</label>
+      <span class="group">Phông chữ Hán:
+        <select id="optFont">
+          <option value='"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif'>Hiện đại (nét đều)</option>
+          <option value='"Kaiti SC",KaiTi,"AR PL KaitiM GB",STKaiti,serif'>Khải thể (nét bút lông)</option>
+          <option value='"Songti SC",SimSun,"Noto Serif SC",serif'>Tống thể (có chân)</option>
+        </select>
+      </span>
+    </div>
+    <div class="row">
+      <button id="btnSpeak">🔊 Đọc</button>
+      <span class="group">Giọng đọc:
+        <select id="voicePersona">
+          <option value="woman">👩 Nữ</option>
+          <option value="man">👨 Nam</option>
+          <option value="child">🧒 Trẻ em</option>
+          <option value="elder">👵 Người cao tuổi</option>
+        </select>
+      </span>
+      <label class="toggle" title="Giọng thần kinh (neural) tự nhiên qua Azure; cần khóa miễn phí — bấm 🔑">
+        <input type="checkbox" id="optNet" checked> Giọng mạng ★ (tự nhiên)
+      </label>
+      <button id="btnKey" title="Cài đặt khóa Azure Speech miễn phí">🔑</button>
+      <span class="group">Giọng cụ thể:
+        <select id="voicePick">
+          <option value="">Tự động (đề xuất)</option>
+          <optgroup label="★ Qua mạng — tự nhiên (cần khóa Azure, bấm 🔑)">
+            <option value="azure:zh-CN-XiaoxiaoNeural">👩 Xiaoxiao — nữ, chuẩn</option>
+            <option value="azure:zh-CN-XiaoyiNeural">👩 Xiaoyi — nữ trẻ</option>
+            <option value="azure:zh-CN-YunxiNeural">👨 Yunxi — nam</option>
+            <option value="azure:zh-CN-YunyangNeural">👨 Yunyang — nam, phát thanh viên</option>
+            <option value="azure:zh-CN-YunjianNeural">👨 Yunjian — nam, trầm</option>
+            <option value="azure:zh-CN-YunyeNeural">👴 Yunye — nam, lớn tuổi</option>
+            <option value="azure:zh-CN-XiaoruiNeural">👵 Xiaorui — bà, cao tuổi</option>
+            <option value="azure:zh-CN-YunxiaNeural">🧒 Yunxia — bé trai</option>
+            <option value="azure:zh-CN-XiaoshuangNeural">🧒 Xiaoshuang — bé gái</option>
+          </optgroup>
+          <optgroup label="Trên thiết bị (không cần mạng)" id="devVoicesGroup"></optgroup>
+        </select>
+      </span>
+      <span class="group">Tốc độ
+        <input type="range" id="rate" min="0.5" max="1.3" step="0.05" value="0.9" style="width:90px">
+        <span class="val" id="rateVal">0.9×</span>
+      </span>
+      <span id="voiceInfo" class="voice-info"></span>
+    </div>
+    <div id="keyPanel" class="keypanel" hidden>
+      <b>Giọng đọc tự nhiên qua mạng (Azure Speech — miễn phí 500.000 ký tự/tháng)</b>
+      <ol>
+        <li>Tạo tài khoản miễn phí tại <a href="https://azure.microsoft.com/free" target="_blank" rel="noopener">azure.microsoft.com/free</a>.</li>
+        <li>Vào <a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → Create a resource → tìm "<b>Speech</b>" → Create.
+            Chọn <b>Pricing tier: Free (F0)</b> và Region <b>Southeast Asia</b>.</li>
+        <li>Mở resource vừa tạo → <b>Keys and Endpoint</b> → sao chép <b>KEY 1</b> và <b>Location/Region</b>, dán vào đây:</li>
+      </ol>
+      <div class="row">
+        <span class="group">KEY 1 <input type="password" id="azKey" size="34" autocomplete="off" placeholder="dán khóa vào đây"></span>
+        <span class="group">Region
+          <input type="text" id="azRegion" size="14" list="azRegions" placeholder="southeastasia" value="southeastasia">
+          <datalist id="azRegions">
+            <option value="southeastasia"></option><option value="eastasia"></option>
+            <option value="japaneast"></option><option value="koreacentral"></option>
+            <option value="australiaeast"></option><option value="eastus"></option>
+            <option value="westeurope"></option>
+          </datalist>
+        </span>
+        <button class="primary" id="btnKeySave">Lưu &amp; thử giọng</button>
+        <span id="keyStatus" class="voice-info"></span>
+      </div>
+      <p class="keynote">Khóa chỉ được lưu trên thiết bị này (trình duyệt của bạn) — không nằm trong file công cụ,
+        nên có thể chia sẻ file thoải mái. Mỗi thiết bị dạy học chỉ cần dán khóa một lần.</p>
+    </div>
+    <details class="voice-tips">
+      <summary>Về giọng đọc (nhấp để xem)</summary>
+      <ul>
+        <li><b>Cách nhanh nhất, không cần cài gì:</b> mở công cụ bằng trình duyệt <b>Microsoft Edge</b> —
+            các giọng tự nhiên "… Online (Natural)" (Xiaoxiao 👩, Yunxi 👨, Yunxia 🧒…) tự xuất hiện
+            trong danh sách "Trên thiết bị" với dấu ★ và được ưu tiên chọn.</li>
+        <li><b>Giọng mạng ★ (mọi trình duyệt):</b> bấm 🔑 và làm theo 3 bước để lấy khóa Azure miễn phí —
+            có đủ giọng nam (Yunxi, Yunjian…), bé trai/bé gái (Yunxia, Xiaoshuang) và người cao tuổi
+            (Xiaorui 👵, Yunye 👴) đều là giọng 普通话 tự nhiên như người thật.</li>
+        <li><b>Khi không có mạng:</b> dùng giọng cài trên thiết bị. Trên Mac / iPad có thể tải thêm:
+            System Settings → Accessibility → Spoken Content → System Voice → Manage Voices… → Chinese
+            → bản <i>Premium/Enhanced</i>, rồi tải lại trang.</li>
+        <li>Nếu thiết bị không có giọng phù hợp cho vai đã chọn, công cụ <i>giả lập</i> bằng cách chỉnh
+            cao độ giọng tốt nhất hiện có (có ghi chú rõ).</li>
+        <li>💡 Nhấp vào một dòng trong phần kết quả để nghe riêng câu đó.</li>
+      </ul>
+    </details>
+    <div class="row legend">
+      <span>Chú thích màu:</span>
+      <span class="chip s3">hǎo → háo</span><span>biến điệu thanh 3 (3+3 → 2+3)</span>
+      <span class="chip sy">bù → bú / yī → yí·yì</span><span>biến điệu 一 và 不</span>
+    </div>
+  </section>
+
+  <!-- Stage: size bar + output (this whole block goes fullscreen) -->
+  <div id="stage">
+    <div class="sizebar">
+      <div class="presets" id="presets">
+        <button data-hz="32"  data-py="16">Nhỏ · tự học</button>
+        <button data-hz="48"  data-py="22" class="active">Vừa · lớp học</button>
+        <button data-hz="76"  data-py="34">Lớn · máy chiếu</button>
+        <button data-hz="112" data-py="50">Rất lớn · hội trường</button>
+      </div>
+      <div class="group">字 Chữ Hán
+        <input type="range" id="hzSize" min="20" max="180" value="48">
+        <span class="val" id="hzVal">48 px</span>
+      </div>
+      <div class="group">pīn Pinyin
+        <input type="range" id="pySize" min="10" max="90" value="22">
+        <span class="val" id="pyVal">22 px</span>
+      </div>
+      <button id="btnFs">⛶ Toàn màn hình</button>
+      <span class="saved" id="savedNote">✓ Đã lưu cài đặt</span>
+    </div>
+    <div id="output"><p class="placeholder">Kết quả sẽ hiện ở đây — pinyin nằm ngay trên từng chữ Hán.</p></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- tone utilities (unit-tested) ---------- */
+  const MARK_MAP = (() => {
+    const rows = {
+      a:'āáǎà', e:'ēéěè', i:'īíǐì', o:'ōóǒò', u:'ūúǔù', 'ü':'ǖǘǚǜ',
+      A:'ĀÁǍÀ', E:'ĒÉĚÈ', I:'ĪÍǏÌ', O:'ŌÓǑÒ', U:'ŪÚǓÙ', 'Ü':'ǕǗǙǛ'
+    };
+    const map = {};
+    for (const plain in rows) [...rows[plain]].forEach((ch, i) => { map[ch] = [plain, i + 1]; });
+    return map;
+  })();
+  const TONE_CHARS = {
+    a:'āáǎà', e:'ēéěè', i:'īíǐì', o:'ōóǒò', u:'ūúǔù', 'ü':'ǖǘǚǜ',
+    A:'ĀÁǍÀ', E:'ĒÉĚÈ', I:'ĪÍǏÌ', O:'ŌÓǑÒ', U:'ŪÚǓÙ', 'Ü':'ǕǗǙǛ'
+  };
+  function stripTone(syl) {
+    let out = '';
+    for (const ch of String(syl).normalize('NFC')) out += MARK_MAP[ch] ? MARK_MAP[ch][0] : ch;
+    return out;
+  }
+  function applyTone(plain, tone) {
+    if (!tone || tone < 1 || tone > 4) return plain;
+    const lower = plain.toLowerCase();
+    let idx = -1;
+    if (lower.includes('a')) idx = lower.indexOf('a');
+    else if (lower.includes('e')) idx = lower.indexOf('e');
+    else if (lower.includes('ou')) idx = lower.indexOf('o');
+    else for (let i = lower.length - 1; i >= 0; i--) if ('aeiouü'.includes(lower[i])) { idx = i; break; }
+    if (idx === -1) return plain;
+    const ch = plain[idx];
+    const marked = TONE_CHARS[ch] ? TONE_CHARS[ch][tone - 1] : ch;
+    return plain.slice(0, idx) + marked + plain.slice(idx + 1);
+  }
+
+  const CJK = /[〇一-鿿㐀-䶿豈-﫿]/;
+
+  /* ---------- analysis: dictionary + sandhi ---------- */
+  // Returns per-line arrays of items {origin, plain, tone, isZh, mark:''|'s3'|'sy'}
+  function analyse(text, useSandhi) {
+    const py = window.pinyinPro.pinyin;
+    return text.split('\n').map(line => {
+      if (!line.trim()) return [];
+      const base = py(line, { type: 'all', toneSandhi: false });
+      // 一/不 sandhi from the library (dictionary-aware: 第一 stays yī, etc.)
+      let yibu = null;
+      if (useSandhi) {
+        const s = py(line, { type: 'all', toneSandhi: true });
+        if (s.length === base.length) yibu = s;
+      }
+      const items = base.map((b, i) => {
+        const isZh = (typeof b.isZh === 'boolean') ? b.isZh : CJK.test(b.origin);
+        let tone = b.num || 0, mark = '';
+        if (yibu && isZh) {
+          const t2 = yibu[i].num || 0;
+          if (t2 !== tone) { tone = t2; mark = 'sy'; }
+        }
+        return { origin: b.origin, plain: isZh ? stripTone(b.pinyin) : '', tone, isZh, mark };
+      });
+      if (useSandhi) {
+        // 好不好 → hǎo bu hǎo: 不 between two identical characters becomes neutral
+        for (let i = 1; i < items.length - 1; i++) {
+          if (items[i].origin === '不' && items[i - 1].isZh && items[i + 1].isZh &&
+              items[i - 1].origin === items[i + 1].origin && items[i].tone !== 0) {
+            items[i].tone = 0; items[i].mark = 'sy';
+          }
+        }
+        // third-tone chains: every 3rd tone before another 3rd tone becomes 2nd
+        let start = -1;
+        const flush = end => {
+          if (start !== -1 && end - start >= 2)
+            for (let i = start; i < end - 1; i++) { items[i].tone = 2; items[i].mark = 's3'; }
+          start = -1;
+        };
+        items.forEach((it, i) => {
+          if (it.isZh && it.tone === 3) { if (start === -1) start = i; } else flush(i);
+        });
+        flush(items.length);
+      }
+      return items;
+    });
+  }
+
+  /* ---------- rendering ---------- */
+  const $ = id => document.getElementById(id);
+  const src = $('src'), output = $('output');
+
+  function render() {
+    if (!window.pinyinPro) {
+      output.innerHTML = '<p class="offline">Không tải được thư viện phiên âm — cần kết nối Internet rồi tải lại trang (Reload).</p>';
+      return;
+    }
+    const text = src.value;
+    if (!text.trim()) {
+      output.innerHTML = '<p class="placeholder">Kết quả sẽ hiện ở đây — pinyin nằm ngay trên từng chữ Hán.</p>';
+      return;
+    }
+    const lines = analyse(text, $('optSandhi').checked);
+    const showHl = $('optHl').checked;
+    const frag = document.createDocumentFragment();
+    for (const items of lines) {
+      if (!items.length) continue;
+      const p = document.createElement('div');
+      p.className = 'para';
+      for (const it of items) {
+        const cell = document.createElement('span');
+        cell.className = 'cell' + (it.isZh ? '' : ' nonzh');
+        const py = document.createElement('span');
+        py.className = 'py' + (showHl && it.mark ? ' ' + it.mark : '');
+        py.textContent = it.isZh ? applyTone(it.plain, it.tone) : '·';
+        const hz = document.createElement('span');
+        hz.className = 'hz';
+        hz.textContent = it.origin === ' ' ? ' ' : it.origin;
+        cell.appendChild(py); cell.appendChild(hz);
+        p.appendChild(cell);
+      }
+      frag.appendChild(p);
+    }
+    output.innerHTML = '';
+    output.appendChild(frag);
+  }
+
+  let timer = null;
+  function renderSoon() { clearTimeout(timer); timer = setTimeout(() => { render(); save(); }, 350); }
+
+  /* ---------- settings (saved automatically) ---------- */
+  const KEY = 'cfl-pinyin-tool-v1';
+  let savedTimer = null;
+  function flashSaved() {
+    const n = $('savedNote');
+    n.classList.add('show');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => n.classList.remove('show'), 1500);
+  }
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        hz: +$('hzSize').value, py: +$('pySize').value,
+        sandhi: $('optSandhi').checked, hl: $('optHl').checked,
+        font: $('optFont').value, text: src.value,
+        persona: $('voicePersona').value, voice: $('voicePick').value, rate: +$('rate').value,
+        net: $('optNet').checked, azKey: $('azKey').value.trim(), azRegion: $('azRegion').value.trim()
+      }));
+      flashSaved();
+    } catch (e) { /* private mode — ignore */ }
+  }
+  function applySizes(hz, py, fromPreset) {
+    document.documentElement.style.setProperty('--hz', hz + 'px');
+    document.documentElement.style.setProperty('--py', py + 'px');
+    $('hzSize').value = hz; $('pySize').value = py;
+    $('hzVal').textContent = hz + ' px';
+    $('pyVal').textContent = py + ' px';
+    document.querySelectorAll('#presets button').forEach(b => {
+      b.classList.toggle('active', +b.dataset.hz === hz && +b.dataset.py === py);
+    });
+  }
+  function load() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (s) {
+      applySizes(s.hz || 48, s.py || 22);
+      $('optSandhi').checked = s.sandhi !== false;
+      $('optHl').checked = s.hl !== false;
+      if (s.font) { $('optFont').value = s.font; }
+      if (s.text) src.value = s.text;
+      if (s.persona) $('voicePersona').value = s.persona;
+      if (s.net === false) $('optNet').checked = false;
+      if (s.azKey) $('azKey').value = s.azKey;
+      if (s.azRegion) $('azRegion').value = s.azRegion;
+      if (s.voice) {
+        $('voicePick').dataset.want = s.voice;   // device voices apply when the list finishes loading
+        if (s.voice.startsWith('azure:')) $('voicePick').value = s.voice; // network options are static
+      }
+      if (s.rate) { $('rate').value = s.rate; $('rateVal').textContent = (+s.rate).toFixed(2).replace(/0$/, '') + '×'; }
+    }
+    document.documentElement.style.setProperty('--hz-font', $('optFont').value);
+  }
+
+  /* ---------- wiring ---------- */
+  src.addEventListener('input', renderSoon);
+  $('btnGo').addEventListener('click', () => { render(); save(); });
+  $('optSandhi').addEventListener('change', () => { render(); save(); });
+  $('optHl').addEventListener('change', () => { render(); save(); });
+  $('optFont').addEventListener('change', () => {
+    document.documentElement.style.setProperty('--hz-font', $('optFont').value);
+    save();
+  });
+  $('hzSize').addEventListener('input', () => { applySizes(+$('hzSize').value, +$('pySize').value); save(); });
+  $('pySize').addEventListener('input', () => { applySizes(+$('hzSize').value, +$('pySize').value); save(); });
+  document.querySelectorAll('#presets button').forEach(b => {
+    b.addEventListener('click', () => { applySizes(+b.dataset.hz, +b.dataset.py); save(); });
+  });
+
+  $('btnSample').addEventListener('click', () => {
+    src.value = '你好！我很好，你呢？\n一年一共有三百六十五天。\n他不是不想去，是不能去。好不好？\n我们一起买五本书，第一次去北京，祝你一路平安！';
+    render(); save();
+  });
+
+  $('btnPrint').addEventListener('click', () => window.print());
+
+  $('btnCopy').addEventListener('click', async () => {
+    if (!window.pinyinPro || !src.value.trim()) return;
+    const lines = analyse(src.value, $('optSandhi').checked);
+    const out = [];
+    for (const items of lines) {
+      if (!items.length) continue;
+      out.push(items.map(it => it.origin).join(''));
+      out.push(items.map(it => it.isZh ? applyTone(it.plain, it.tone) : it.origin).join(' ')
+        .replace(/\s+/g, ' ').trim());
+      out.push('');
+    }
+    const txt = out.join('\n').trim();
+    try { await navigator.clipboard.writeText(txt); }
+    catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    const b = $('btnCopy'), old = b.textContent;
+    b.textContent = '✓ Đã sao chép';
+    setTimeout(() => b.textContent = old, 1500);
+  });
+
+  /* ---------- speech: persona-based voice picking + chunked playback ---------- */
+  // Known Mandarin voices → gender (f/m) and dedicated persona (child/elder).
+  // Covers Microsoft Edge "Online (Natural)" neural voices, Windows, macOS/iOS and Google voices.
+  const VOICE_DB = [
+    { m: 'xiaoshuang', g: 'f', persona: 'child' },  // Edge natural — girl
+    { m: 'xiaoyou',    g: 'f', persona: 'child' },  // Edge natural — girl
+    { m: 'yunxia',     g: 'm', persona: 'child' },  // Edge natural — young boy
+    { m: 'xiaorui',    g: 'f', persona: 'elder' },  // Edge natural — senior woman
+    { m: 'grandma',    g: 'f', persona: 'elder' },  // macOS/iOS novelty
+    { m: 'grandpa',    g: 'm', persona: 'elder' },  // macOS/iOS novelty
+    { m: 'xiaoxiao', g: 'f' }, { m: 'xiaoyi', g: 'f' }, { m: 'xiaohan', g: 'f' },
+    { m: 'xiaomo', g: 'f' }, { m: 'xiaoxuan', g: 'f' }, { m: 'xiaochen', g: 'f' },
+    { m: 'yunxi', g: 'm' }, { m: 'yunjian', g: 'm' }, { m: 'yunyang', g: 'm' },
+    { m: 'yunye', g: 'm' }, { m: 'yunhao', g: 'm' }, { m: 'yunfeng', g: 'm' },
+    { m: 'huihui', g: 'f' }, { m: 'yaoyao', g: 'f' }, { m: 'lili', g: 'f' },
+    { m: 'kangkang', g: 'm' }, { m: 'danny', g: 'm' }, { m: 'zhiwei', g: 'm' },
+    { m: 'tingting', g: 'f' }, { m: 'ting-ting', g: 'f' }, { m: 'meijia', g: 'f' },
+    { m: 'mei-jia', g: 'f' }, { m: 'yating', g: 'f' }, { m: 'hanhan', g: 'f' },
+    { m: 'lanlan', g: 'f' }, { m: 'shanshan', g: 'f' }, { m: 'binbin', g: 'm' },
+    { m: 'flo', g: 'f' }, { m: 'sandy', g: 'f' }, { m: 'shelley', g: 'f' },
+    { m: 'eddy', g: 'm' }, { m: 'reed', g: 'm' }, { m: 'rocko', g: 'm' },
+    { m: 'google', g: 'f' }
+  ];
+  function voiceMeta(v) {
+    const n = (v.name + ' ' + v.voiceURI).toLowerCase();
+    return VOICE_DB.find(d => n.includes(d.m)) || null;
+  }
+  function voiceQuality(v) {
+    const n = (v.name + ' ' + v.voiceURI).toLowerCase();
+    if (n.includes('natural') || n.includes('neural')) return 4;   // Edge online neural
+    if (n.includes('siri') || n.includes('premium') || n.includes('enhanced')) return 3;
+    if (n.includes('google')) return 2.5;
+    if (/flo|sandy|shelley|eddy|reed|rocko|grandma|grandpa/.test(n)) return 0.5; // novelty
+    return 1;
+  }
+  function mandarinVoices() {
+    if (!('speechSynthesis' in window)) return [];
+    // zh-CN / zh-TW are Mandarin; exclude zh-HK (Cantonese — wrong pronunciation)
+    return speechSynthesis.getVoices()
+      .filter(v => /^zh([-_](cn|tw|chs?|hans|hant))?$/i.test(v.lang.replace(' ', '')) ||
+                   /^zh[-_](cn|tw)/i.test(v.lang))
+      .filter(v => !/hk|cantonese|sinji|aasing/i.test(v.lang + ' ' + v.name) && !/^yue/i.test(v.lang))
+      .sort((a, b) => (voiceQuality(b) - voiceQuality(a)) ||
+                      (/^zh[-_]cn/i.test(b.lang) - /^zh[-_]cn/i.test(a.lang))); // standard Mainland first
+  }
+  /* --- network engine: Azure Speech neural voices (official API, free F0 tier) --- */
+  const AZURE_PERSONA = {
+    woman: { v: 'zh-CN-XiaoxiaoNeural',  label: 'Xiaoxiao (nữ)',      pitch: 0, rate: 0 },
+    man:   { v: 'zh-CN-YunxiNeural',     label: 'Yunxi (nam)',        pitch: 0, rate: 0 },
+    child: { v: 'zh-CN-XiaoshuangNeural', label: 'Xiaoshuang (bé gái)', pitch: 0, rate: 0 },
+    elder: { v: 'zh-CN-XiaoruiNeural',   label: 'Xiaorui (bà, cao tuổi)', pitch: 0, rate: 0 }
+  };
+  const AZURE_LABELS = {
+    'zh-CN-XiaoxiaoNeural': 'Xiaoxiao (nữ)', 'zh-CN-XiaoyiNeural': 'Xiaoyi (nữ trẻ)',
+    'zh-CN-YunxiNeural': 'Yunxi (nam)', 'zh-CN-YunyangNeural': 'Yunyang (nam)',
+    'zh-CN-YunjianNeural': 'Yunjian (nam trầm)', 'zh-CN-YunyeNeural': 'Yunye (ông, lớn tuổi)',
+    'zh-CN-XiaoruiNeural': 'Xiaorui (bà, cao tuổi)', 'zh-CN-YunxiaNeural': 'Yunxia (bé trai)',
+    'zh-CN-XiaoshuangNeural': 'Xiaoshuang (bé gái)'
+  };
+  let netOk = true, netErr = '';           // flips false after a network/key failure
+  const netCache = new Map();              // voice|rate|pitch|text -> Promise<Blob>
+  const fmtPct = n => (n >= 0 ? '+' : '') + Math.round(n) + '%';
+  const escXml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const azConf = () => ({ key: ($('azKey').value || '').trim(), region: ($('azRegion').value || '').trim().toLowerCase() });
+  async function azureSynth(text, voiceName, ratePct, pitchPct) {
+    const { key, region } = azConf();
+    const res = await fetch('https://' + region + '.tts.speech.microsoft.com/cognitiveservices/v1', {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': key,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3'
+      },
+      body: '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">' +
+        '<voice name="' + voiceName + '"><prosody pitch="' + fmtPct(pitchPct) + '" rate="' + fmtPct(ratePct) + '">' +
+        escXml(text) + '</prosody></voice></speak>'
+    });
+    if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+    return new Blob([await res.arrayBuffer()], { type: 'audio/mpeg' });
+  }
+  function netGet(text, voiceName, ratePct, pitchPct) {
+    const key = voiceName + '|' + ratePct + '|' + pitchPct + '|' + text;
+    if (!netCache.has(key)) {
+      if (netCache.size > 60) netCache.delete(netCache.keys().next().value);
+      const p = azureSynth(text, voiceName, ratePct, pitchPct);
+      p.catch(() => netCache.delete(key));
+      netCache.set(key, p);
+    }
+    return netCache.get(key);
+  }
+
+  /* --- voice resolution: manual pick wins; else network persona; else device persona --- */
+  const hasKey = () => { const c = azConf(); return !!(c.key && c.region); };
+  const useNet = () => $('optNet').checked && hasKey() && navigator.onLine !== false && netOk;
+  function resolveDevice(persona) {
+    const vs = mandarinVoices();
+    if (!vs.length) return { engine: 'device', voice: null, pitch: 1, rateMul: 1, simulated: false, label: '' };
+    const byPersona = vs.filter(v => (voiceMeta(v) || {}).persona === persona);
+    const byGender = g => vs.filter(v => { const m = voiceMeta(v); return m && m.g === g && !m.persona; });
+    let voice = null, pitch = 1, rateMul = 1, simulated = false;
+    if (persona === 'child' || persona === 'elder') voice = byPersona[0];
+    else voice = byGender(persona === 'man' ? 'm' : 'f')[0];
+    if (persona === 'child' && !voice) { voice = byGender('f')[0] || vs[0]; pitch = 1.35; rateMul = 1.05; simulated = true; }
+    else if (persona === 'elder' && !voice) { voice = byGender('m')[0] || vs[0]; pitch = 0.75; rateMul = 0.8; simulated = true; }
+    else if (persona === 'man' && !voice) { voice = vs[0]; pitch = 0.7; simulated = true; }
+    else if (!voice) voice = vs[0];
+    const label = voice ? voice.name.replace(/Microsoft |Online |\(Natural\) - Chinese.*$/g, '').trim() : '';
+    return { engine: 'device', voice, pitch, rateMul, simulated, label };
+  }
+  function resolveVoice(persona) {
+    const pick = $('voicePick').value;
+    if (pick.startsWith('azure:') && hasKey() && netOk) {
+      const v = pick.slice(6);
+      return { engine: 'azure', v, pitch: 0, rate: 0, label: AZURE_LABELS[v] || v };
+    }
+    if (pick && !pick.startsWith('azure:')) {
+      const voice = mandarinVoices().find(v => v.voiceURI === pick || v.name === pick);
+      if (voice) return { engine: 'device', voice, pitch: 1, rateMul: 1, simulated: false, label: voice.name };
+    }
+    if (useNet()) { const e = AZURE_PERSONA[persona]; return { engine: 'azure', v: e.v, pitch: e.pitch, rate: e.rate, label: e.label }; }
+    return resolveDevice(persona);
+  }
+  function updateVoiceInfo() {
+    const r = resolveVoice($('voicePersona').value);
+    if (r.engine === 'azure') { $('voiceInfo').textContent = '→ ' + r.label + ' ★ qua mạng'; return; }
+    let note = '';
+    if ($('optNet').checked && !hasKey()) note = ' — muốn giọng tự nhiên hơn? bấm 🔑';
+    else if ($('optNet').checked && !netOk) note = ' — lỗi giọng mạng (' + netErr + '), dùng giọng thiết bị';
+    $('voiceInfo').textContent = r.voice
+      ? '→ ' + r.label + (voiceQuality(r.voice) >= 3 ? ' ★' : '') + (r.simulated ? ' (giả lập cao độ)' : '') + note
+      : 'Không tìm thấy giọng tiếng Trung trên thiết bị — bấm 🔑 để dùng giọng mạng.';
+  }
+  function populateVoicePick() {
+    const group = $('devVoicesGroup'), sel = $('voicePick');
+    const saved = sel.dataset.want || sel.value;
+    group.innerHTML = '';
+    for (const v of mandarinVoices()) {
+      const o = document.createElement('option');
+      o.value = v.voiceURI;
+      const m = voiceMeta(v);
+      o.textContent = (m ? (m.persona === 'child' ? '🧒 ' : m.persona === 'elder' ? '👵 ' : m.g === 'm' ? '👨 ' : '👩 ') : '') +
+        v.name + (voiceQuality(v) >= 3 ? ' ★' : '');
+      group.appendChild(o);
+    }
+    if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+    updateVoiceInfo();
+  }
+  if ('speechSynthesis' in window) {
+    populateVoicePick();
+    speechSynthesis.addEventListener('voiceschanged', populateVoicePick);
+  } else { updateVoiceInfo(); }
+
+  /* --- playback: sentence queue, network prefetch, automatic fallback --- */
+  const splitSentences = t => t.split(/(?<=[。！？；.!?;\n])/).map(s => s.trim()).filter(Boolean);
+  let speakingNow = false, speakToken = 0, currentAudio = null;
+  function stopSpeak() {
+    speakToken++; speakingNow = false;
+    if (currentAudio) { try { currentAudio.pause(); } catch (e) {} currentAudio = null; }
+    try { speechSynthesis.cancel(); } catch (e) {}
+    $('btnSpeak').textContent = '🔊 Đọc';
+    document.querySelectorAll('.para.speaking').forEach(p => p.classList.remove('speaking'));
+  }
+  function playBlob(blob, my) {
+    return new Promise((resolve, reject) => {
+      if (speakToken !== my) return resolve();
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      currentAudio = a;
+      a.onended = () => { URL.revokeObjectURL(url); resolve(); };
+      a.onerror = () => { URL.revokeObjectURL(url); reject(new Error('audio error')); };
+      a.play().catch(reject);
+    });
+  }
+  function playDeviceQueue(sentences, r, my) {
+    if (!('speechSynthesis' in window)) { stopSpeak(); return; }
+    const rate = (+$('rate').value) * (r.rateMul || 1);
+    const queue = sentences.slice();
+    const next = () => {
+      if (speakToken !== my || !queue.length) { if (speakToken === my) stopSpeak(); return; }
+      const u = new SpeechSynthesisUtterance(queue.shift());
+      u.lang = (r.voice && r.voice.lang) || 'zh-CN';
+      if (r.voice) u.voice = r.voice;
+      u.rate = rate; u.pitch = r.pitch || 1;
+      u.onend = next;
+      u.onerror = () => { if (speakToken === my) stopSpeak(); };
+      speechSynthesis.speak(u);
+    };
+    next();
+  }
+  async function playAzureQueue(sentences, r, my) {
+    const ratePct = Math.round((+$('rate').value - 1) * 100) + r.rate;
+    const get = i => netGet(sentences[i], r.v, ratePct, r.pitch);
+    for (let i = 0; i < sentences.length; i++) {
+      if (speakToken !== my) return;
+      let blob;
+      try {
+        const p = get(i);
+        if (i + 1 < sentences.length) get(i + 1).catch(() => {}); // prefetch next
+        blob = await p;
+      } catch (e) {
+        netOk = false;
+        netErr = (e.status === 401 || e.status === 403) ? 'khóa sai hoặc hết hạn' : 'không kết nối được';
+        updateVoiceInfo();                       // network died — switch to device voices
+        if (speakToken === my) playDeviceQueue(sentences.slice(i), resolveDevice($('voicePersona').value), my);
+        return;
+      }
+      if (speakToken !== my) return;
+      try { await playBlob(blob, my); } catch (e) { if (speakToken === my) stopSpeak(); return; }
+    }
+    if (speakToken === my) stopSpeak();
+  }
+  function speakText(text, paraEl) {
+    if (!text.trim()) return;
+    stopSpeak();
+    const my = speakToken;
+    const sentences = splitSentences(text);
+    if (!sentences.length) return;
+    speakingNow = true;
+    $('btnSpeak').textContent = '⏹ Dừng';
+    if (paraEl) paraEl.classList.add('speaking');
+    const r = resolveVoice($('voicePersona').value);
+    if (r.engine === 'azure') playAzureQueue(sentences, r, my);
+    else playDeviceQueue(sentences, r, my);
+  }
+  $('btnSpeak').addEventListener('click', () => {
+    if (speakingNow) stopSpeak(); else speakText(src.value, null);
+  });
+  $('optNet').addEventListener('change', () => {
+    stopSpeak();
+    if ($('optNet').checked) { netOk = true; if (!hasKey()) $('keyPanel').hidden = false; }
+    updateVoiceInfo(); save();
+  });
+  $('btnKey').addEventListener('click', () => { $('keyPanel').hidden = !$('keyPanel').hidden; });
+  $('btnKeySave').addEventListener('click', async () => {
+    const st = $('keyStatus');
+    if (!hasKey()) { st.textContent = '✗ Hãy dán KEY 1 và Region trước.'; return; }
+    st.textContent = 'Đang thử…';
+    netOk = true; netCache.clear();
+    try {
+      const blob = await azureSynth('你好！我是新的声音。', 'zh-CN-YunxiNeural', 0, 0);
+      st.textContent = '✓ Hoạt động! Đang phát thử giọng nam Yunxi…';
+      save(); updateVoiceInfo();
+      const a = new Audio(URL.createObjectURL(blob)); a.play().catch(() => {});
+    } catch (e) {
+      st.textContent = '✗ ' + ((e.status === 401 || e.status === 403) ? 'Khóa hoặc Region chưa đúng — kiểm tra lại KEY 1 và Location/Region.'
+        : 'Không kết nối được (' + (e.message || e) + ').');
+    }
+  });
+  $('voicePersona').addEventListener('change', () => { stopSpeak(); updateVoiceInfo(); save(); });
+  $('voicePick').addEventListener('change', () => { stopSpeak(); updateVoiceInfo(); save(); });
+  $('rate').addEventListener('input', () => {
+    $('rateVal').textContent = (+$('rate').value).toFixed(2).replace(/0$/, '') + '×';
+    save();
+  });
+  // click a rendered line to hear just that sentence
+  output.addEventListener('click', e => {
+    const p = e.target.closest('.para');
+    if (!p) return;
+    const text = [...p.querySelectorAll('.hz')].map(h => h.textContent).join('');
+    speakText(text, p);
+  });
+
+  /* fullscreen — native API, with a CSS overlay fallback (iPad, embedded views) */
+  const stage = $('stage');
+  function fsActive() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement) ||
+           stage.classList.contains('fakefs');
+  }
+  function setFsLabel() {
+    $('btnFs').textContent = fsActive() ? '✕ Thoát toàn màn hình (Esc)' : '⛶ Toàn màn hình';
+  }
+  async function exitFs() {
+    stage.classList.remove('fakefs');
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) { try { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} }
+    setFsLabel();
+  }
+  async function enterFs() {
+    try {
+      await (stage.requestFullscreen || stage.webkitRequestFullscreen).call(stage);
+    } catch (e) {
+      stage.classList.add('fakefs'); // browser refused — use the CSS overlay instead
+    }
+    setFsLabel();
+  }
+  $('btnFs').addEventListener('click', () => { fsActive() ? exitFs() : enterFs(); });
+  document.addEventListener('fullscreenchange', setFsLabel);
+  document.addEventListener('webkitfullscreenchange', setFsLabel);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && stage.classList.contains('fakefs')) exitFs();
+  });
+
+  /* init */
+  load();
+  if ('speechSynthesis' in window) populateVoicePick(); // re-apply saved voice/persona after load()
+  render();
+})();
+</script>
+</body>
+</html>
