@@ -100,8 +100,22 @@
       box-shadow: 0 6px 24px rgba(0,0,0,.25); opacity: .45; transition: opacity .25s;
       width: max-content; max-width: 96vw; }
   #stage:fullscreen .sizebar:hover, #stage:-webkit-full-screen .sizebar:hover,
-  #stage.fakefs .sizebar:hover { opacity: 1; }
+  #stage.fakefs .sizebar:hover,
+  #stage:fullscreen .sizebar:focus-within, #stage:-webkit-full-screen .sizebar:focus-within,
+  #stage.fakefs .sizebar:focus-within { opacity: 1; }
   #stage .sizebar { margin: 0 0 16px; border-radius: 10px; }
+
+  /* compact live input — shown only while presenting in fullscreen */
+  .fs-only { display: none; }
+  #stage:fullscreen .fs-only, #stage:-webkit-full-screen .fs-only, #stage.fakefs .fs-only { display: inline-flex; }
+  #fsInputWrap { align-items: flex-start; gap: 6px; }
+  #fsInputWrap > span { padding-top: 7px; }
+  #fsInput { font-family: var(--hz-font); font-size: 16px; line-height: 1.4;
+             width: 260px; max-width: 60vw; min-height: 34px; max-height: 148px;
+             resize: none; overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--line);
+             border-radius: 8px; padding: 6px 10px; background: var(--bg); color: var(--ink); }
+  #fsInput:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  @media (max-width: 640px) { #fsInput { width: 160px; } }
 
   #output { font-family: var(--hz-font); }
   #output .placeholder, #output .offline { font-size: 15px;
@@ -263,6 +277,10 @@
         <input type="range" id="pySize" min="10" max="90" value="22">
         <span class="val" id="pyVal">22 px</span>
       </div>
+      <label class="group fs-only" id="fsInputWrap" title="Gõ chữ Hán — Enter để xuống dòng; chữ và pinyin cập nhật ngay">
+        <span>✎ Gõ chữ Hán</span>
+        <textarea id="fsInput" rows="2" placeholder="Mỗi dòng một câu — Enter để xuống dòng…" spellcheck="false"></textarea>
+      </label>
       <button id="btnFs">⛶ Toàn màn hình</button>
       <span class="saved" id="savedNote">✓ Đã lưu cài đặt</span>
     </div>
@@ -773,12 +791,14 @@
     setFsLabel();
   }
   async function enterFs() {
+    fsInput.value = src.value; fsAutoGrow();
     try {
       await (stage.requestFullscreen || stage.webkitRequestFullscreen).call(stage);
     } catch (e) {
       stage.classList.add('fakefs'); // browser refused — use the CSS overlay instead
     }
     setFsLabel();
+    setTimeout(() => { try { fsInput.focus(); } catch (e) {} }, 60);
   }
   $('btnFs').addEventListener('click', () => { fsActive() ? exitFs() : enterFs(); });
   document.addEventListener('fullscreenchange', setFsLabel);
@@ -786,6 +806,18 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && stage.classList.contains('fakefs')) exitFs();
   });
+
+  /* fullscreen compact input — reuses the same render/analyse/save pipeline as the main textarea */
+  const fsInput = $('fsInput');
+  function fsAutoGrow() {
+    fsInput.style.height = 'auto';
+    fsInput.style.height = Math.min(fsInput.scrollHeight, 148) + 'px';
+  }
+  // Enter chèn dấu xuống dòng bình thường; chữ Hán + pinyin cập nhật ngay theo từng dòng.
+  // Bộ gõ tiếng Trung (IME) hoạt động như thường: Enter chọn ứng viên sẽ không tạo dòng mới.
+  fsInput.addEventListener('input', () => { src.value = fsInput.value; fsAutoGrow(); renderSoon(); });
+  // keep the two inputs in sync when editing in the normal (non-fullscreen) textarea
+  src.addEventListener('input', () => { if (fsInput.value !== src.value) fsInput.value = src.value; });
 
   /* init */
   load();
